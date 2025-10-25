@@ -1,21 +1,34 @@
 from var import Var
 from utils import get_topological_order 
+from typing import List 
+import numpy as np 
 
 
-def backprop(output: Var, args: list[Var]):
-    topo_order = get_topological_order(output)
+def backpropagation(output: Var, inputs: List[Var]) -> List[np.ndarray]:
+    """Compute gradients of output wrt given input nodes."""
+    order = get_topological_order(output)
 
-    grad_map = {output: 1.0}
+    # Reset all gradients
+    for node in order:
+        node.grad = np.zeros_like(node.value)
+    output.grad = np.ones_like(output.value)
 
-    for node in reversed(topo_order):
-        current_grad = grad_map[node]
-
+    # Traverse backward
+    for node in reversed(order):
+        if node.op is None:
+            continue
         parent_values = [p.value for p in node.parents]
-        local_grads = node.op.backward_fn(current_grad, *parent_values)
+        grads_to_parents = node.op.backward_fn(*parent_values, node.grad)
+        for parent, g in zip(node.parents, grads_to_parents):
+            parent.grad += g
 
-        for i, parent_var in enumerate(node.parents):
-            grad_map[parent_var] = grad_map.get(parent_var, 0.0) + local_grads[i]
+    return [inp.grad for inp in inputs]
 
-    result_grads = tuple(grad_map.get(arg, 0.0) for arg in args)
 
-    return result_grads
+def grad(func):
+    def grad_f(*inputs):
+        vars_ = [Var.from_value(v) if not isinstance(v, Var) else v for v in inputs]
+        out = func(*vars_)
+        return backpropagation(out, vars_)
+
+    return grad_f
