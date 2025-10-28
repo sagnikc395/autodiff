@@ -1,5 +1,7 @@
 import numpy as np
 
+from typing import Tuple
+
 from op import Op
 
 class Var:
